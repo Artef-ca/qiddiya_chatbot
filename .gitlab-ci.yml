@@ -1,0 +1,32 @@
+stages:
+  - security # Stage for SAST and Dependency Scanning
+  - test
+  - deploy
+
+include:
+  - template: Security/SAST.gitlab-ci.yml
+  - template: Security/Dependency-Scanning.gitlab-ci.yml
+
+trigger_google_cloud_build:
+  stage: deploy
+  image: curlimages/curl:latest
+  environment:
+    name: $CI_ENVIRONMENT_NAME
+  script: |
+    echo "Triggering Google Cloud Build for ENV: ${CI_ENVIRONMENT_NAME}"
+    curl -X POST \
+      -H "Content-Type: application/json" \
+      -H "X-Cloud-Build-Trigger-Secret: ${GCP_CLOUDBUILD_WEBHOOK_SECRET}" \
+      -d '{}' \
+      "${GCP_CLOUDBUILD_WEBHOOK_URL}" \
+      --fail-with-body
+    echo "Google Cloud Build triggered successfully!"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev-deployment"
+      variables:
+        CI_ENVIRONMENT_NAME: dev
+      when: on_success
+    - if: $CI_COMMIT_BRANCH == "main"
+      variables:
+        CI_ENVIRONMENT_NAME: prod
+      when: manual
